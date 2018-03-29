@@ -3,6 +3,10 @@ For CMPM163 Final Project.
 ### Project Final Effect
 link: https://hhllii.github.io/CMPM163_Project/Project_main.html <br>
 <br>
+
+### Star by Zixuan Zhao
+link: https://hhllii.github.io/CMPM163_Project/star_ZixuanZhao.html <br>
+
 ### Hidden image by Shuli He
 The inital example without shader:
 link: https://hhllii.github.io/CMPM163_Project/hidden_image_example.html <br>
@@ -11,9 +15,6 @@ link: https://hhllii.github.io/CMPM163_Project/hidden_image.html <br>
 
 ### Planet by Eric Ota
 link: https://hhllii.github.io/CMPM163_Project/final_project_planet_eota.html <br>
-
-### Star by Zixuan Zhao
-link: https://hhllii.github.io/CMPM163_Project/star_ZixuanZhao.html <br>
 
 ### Jump Transition by Jingcheng Shi
 link: https://hhllii.github.io/CMPM163_Project/jump_transition_ver1.html <br>
