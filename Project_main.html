@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title> Space game </title>
+	<!-- Jingcheng Shi -->
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<style>
+		body {
+			padding: 0;
+			margin: 0;
+			overflow: hidden;
+		}
+	</style>
+</head>
+
+<body>
+
+	<div id="container"></div>
+
+	<script src="js/three.js"></script>
+	<script src="js/stats.min.js"></script>
+	<script src="js/controls/OrbitControls.js"></script>
+	<script src="js/dat.gui.min.js"></script>
+	<script src="./js/GPUParticleSystem.js"></script>
+
+	<script id="hid_vertexShader" type="x-shader/x-vertex">
+
+		//Three.js gives us these automatically when a perspective camera is bound to the renderer
+		uniform mat4 modelViewMatrix;
+		uniform mat4 projectionMatrix;
+		
+		//Since we are using BufferGeometry, we have defined the attributes that we need manually
+		attribute vec3 position;
+		attribute vec2 texCoords;
+	
+		//link variables between the vertex shader and the fragment shader
+		varying vec2 UV;
+	
+		void main() {
+	
+			//pass our interpolated texCoords to the fragment shader
+			   UV = texCoords;
+	
+				//of course, we always have to output our vertices in clip coords by multiplying through a projection matrix.
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); 
+			
+			  }
+	
+		</script>
+	<script id="hid_fragmentShader_black" type="x-shader/x-fragment">
+	
+		precision mediump float;
+	
+		//special data type used to access texture stored on GPU
+		uniform sampler2D t1;
+		
+		//need to know the resolution of texture so that we can grab neighbors of current pixel
+		uniform float rx;
+		uniform float ry;
+	
+		uniform float mixVal;
+	
+		//this has to have the same name as in the vertex shader. Here, in the fragment shader, we interpolate across the textureCoordinates
+		varying vec2 UV;
+	
+			  void main() {
+			//white background
+			vec4 color = texture2D(t1, UV);
+	
+			//turn to gray_scale
+			float grey_scale = dot(color.rgb, vec3(0.222, 0.707, 0.071));
+	
+			color.r = grey_scale;
+			color.g = grey_scale;
+			color.b = grey_scale;
+	
+			float a = 1.0 - color.r;
+			float r = 0.0;
+	
+			color = vec4(r, r, r, a);
+	
+			gl_FragColor = color; 
+	
+		}
+		</script>
+
+	<script id="hid_fragmentShader" type="x-shader/x-fragment">
+	
+		precision mediump float;
+	
+		//special data type used to access texture stored on GPU
+		uniform sampler2D t1;
+		uniform sampler2D t2;
+		
+		//need to know the resolution of texture so that we can grab neighbors of current pixel
+		uniform float rx;
+		uniform float ry;
+	
+		uniform float mixVal;
+	
+		//this has to have the same name as in the vertex shader. Here, in the fragment shader, we interpolate across the textureCoordinates
+		varying vec2 UV;
+	
+			  void main() {
+			//white background
+			vec4 color1 = texture2D(t1, UV);
+	
+			//turn to gray_scale
+			float grey_scale1 = dot(color1.rgb, vec3(0.222, 0.707, 0.071));
+	
+			color1.r = grey_scale1;
+			color1.g = grey_scale1;
+			color1.b = grey_scale1;
+	
+			//black background
+			vec4 color2 = texture2D(t2, UV);
+			//vec4 color2 = vec4(1.0, 1.0, 1.0, 1.0);
+			float grey_scale2 = dot(color2.rgb, vec3(0.222, 0.707, 0.071)) * 0.2;
+			color2.r = grey_scale2;
+			color2.g = grey_scale2;
+			color2.b = grey_scale2;
+	
+			float a = 1.0 - color1.r + color2.r;
+			float r = color2.r / a;
+	
+			gl_FragColor = vec4(r, r, r, a); 
+	
+		}
+	
+		</script>
+
+
+	<script id="vertexShader" type="x-shader/x-vertex">
+
+	void main(){
+		gl_Position = vec4(position, 1.0);
+	}
+
+	</script>
+
+	<script id="fragmentShader" type="x-shader/x-fragment">
+
+	precision highp float;
+
+	uniform vec2 iResolution;
+	uniform float iTime;
+
+	void main()
+	{
+		float time = (iTime+29.) * 60.0;
+
+		float s = 0.0, v = 0.0;
+		vec2 uv = (gl_FragCoord.xy / iResolution.xy) * 2.0 - 1.0;
+		float t = time*0.005;
+		uv.x = (uv.x * iResolution.x / iResolution.y) + sin(t) * 0.5;
+		float si = sin(t + 2.17); // ...Squiffy rotation matrix!
+		float co = cos(t);
+		uv *= mat2(co, si, -si, co);
+		vec3 col = vec3(0.0);
+		vec3 init = vec3(0.25, 0.25 + sin(time * 0.001) * 0.4, floor(time) * 0.0008);
+		for (int r = 0; r < 100; r++)
+		{
+			vec3 p = init + s * vec3(uv, 0.143);
+			p.z = mod(p.z, 2.0);
+			for (int i=0; i < 10; i++)	p = abs(p * 2.04) / dot(p, p) - 0.75;
+			v += length(p * p) * smoothstep(0.0, 0.5, 0.9 - s) * .002;
+			// Get a purple and cyan effect by biasing the RGB in different ways...
+			col +=  vec3(v * 0.8, 1.1 - s * 0.5, .7 + v * 0.5) * v * 0.013;
+			s += .01;
+		}
+		gl_FragColor = vec4(col, 1.0);
+
+	}
+
+	</script>
+
+
+
+	<script>
+
+		var container, stats;
+		var camera, scene, renderer;
+		var uniforms;
+		var clock = new THREE.Clock();
+		var mesh_tp, tp_in = true;
+		var gui = new dat.GUI({ width: 279 });
+		var controls;
+		var tick = 0;
+		var options, spawnerOptions, particleSystem;
+
+		var vs = document.getElementById('hid_vertexShader').textContent;
+		var fs = document.getElementById('hid_fragmentShader').textContent;
+		var fs_b = document.getElementById('hid_fragmentShader_black').textContent;
+
+		var texture1 = new THREE.TextureLoader().load('res/test.jpg');
+		var texture2 = new THREE.TextureLoader().load('res/toho.png');
+		init();
+		animate();
+		animateParticleStars();
+
+		function init() {
+
+			container = document.getElementById('container');
+
+
+			camera = new THREE.PerspectiveCamera();
+			camera.position.z = 50;
+
+			scene = new THREE.Scene();
+			scene_main = new THREE.Scene();
+
+			stats = new Stats();
+			container.appendChild(stats.dom);
+
+			//var channelTex = new THREE.TextureLoader().load('tex.png');
+			var geometry = new THREE.PlaneBufferGeometry(window.innerWidth, window.innerHeight);
+
+			uniforms = {
+				iTime: { type: "f", value: 1.0 },
+				//iChannel0: {type:'t', value: channelTex },
+				iResolution: { type: "v2", value: new THREE.Vector2() }
+			};
+
+			var material = new THREE.ShaderMaterial({
+
+				uniforms: uniforms,
+				vertexShader: document.getElementById('vertexShader').textContent,
+				fragmentShader: document.getElementById('fragmentShader').textContent
+
+			});
+
+			var mesh_tp = new THREE.Mesh(geometry, material);
+			mesh_tp.name = 'tp';
+			scene.add(mesh_tp);
+
+			/////////////////////////
+			//start with hidden image
+			/////////////////////////
+
+			// buffer geometry
+
+			var geometry_img = new THREE.BufferGeometry();
+
+			var vertices = new Float32Array([
+				-1.0, -1.0, 0.0,
+				+1.0, -1.0, 0.0,
+				+1.0, +1.0, 0.0,
+
+				-1.0, -1.0, 0.0,
+				+1.0, +1.0, 0.0,
+				-1.0, +1.0, 0.0,
+
+			]);
+
+			var texCoords = new Float32Array([
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+
+				0.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+			]);
+
+
+
+			// itemSize = 3 because there are 3 values (components) per vertex
+			geometry_img.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
+			geometry_img.addAttribute('texCoords', new THREE.BufferAttribute(texCoords, 2));
+			var uniforms_hid = {
+				t1: { type: "t", value: texture1 },
+				t2: { type: "t", value: texture2 },
+				rx: { type: "f", value: 1024 / 2 },
+				ry: { type: "f", value: 1024 / 2 },
+				mixVal: { type: "f", value: 0.5 },
+			};
+
+
+			material_hid_cb = new THREE.RawShaderMaterial({
+				uniforms: uniforms_hid,
+				vertexShader: vs,
+				fragmentShader: fs,
+				transparent: true
+			});
+
+
+			mesh_hid_cb = new THREE.Mesh(geometry_img, material_hid_cb);
+			mesh_hid_cb.material.side = THREE.DoubleSide; //to render both sides of triangle
+			mesh_hid_cb.position.z = 30;
+			scene_main.add(mesh_hid_cb);
+
+			/////////////////////////
+			//End with hidden image
+			/////////////////////////
+
+			////////////////////////////////////////////////////////////////////////////////
+			//															PLANET STUFF																	//
+			////////////////////////////////////////////////////////////////////////////////
+
+			/////////////////
+			////  LIGHTS ////
+			/////////////////
+			var ambientLight = new THREE.AmbientLight(0xFFFFFF);
+			scene_main.add(ambientLight);
+			var spotlight = new THREE.DirectionalLight(0xFFFFFF);
+			spotlight.position.set(50, 50, 50);
+			scene_main.add(spotlight);
+			/////////////////
+			///  OBJECTS ////
+			/////////////////
+			var earthGeometry = new THREE.SphereGeometry(10, 50, 50);
+			var earthMaterial = new THREE.MeshPhongMaterial({
+				map: new THREE.TextureLoader().load('img/earth_texture.jpg'),
+				bumpMap: new THREE.TextureLoader().load('img/earthbump1k.jpg'),
+				bumpScale: 0.7,
+				color: 0xf1f1f1
+			});
+			var earth = new THREE.Mesh(earthGeometry, earthMaterial);
+			earth.position.set(0, 0, 0);
+			scene_main.add(earth);
+			//Clouds
+			var cloudGeometry = new THREE.SphereGeometry(10.3, 50, 50);
+			var cloudMaterial = new THREE.MeshPhongMaterial({
+				map: new THREE.TextureLoader().load('img/clouds.jpg'),
+				transparent: true,
+				opacity: 0.3
+			});
+			var clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+			clouds.position.set(0, 0, 0);
+			scene_main.add(clouds);
+			//Moon
+			var moonGeometry = new THREE.SphereGeometry(4, 60, 60);
+			var moonMaterial = new THREE.MeshPhongMaterial({
+				map: new THREE.TextureLoader().load('img/moon_texture.jpg')
+			});
+			var moon = new THREE.Mesh(moonGeometry, moonMaterial);
+			moon.position.set(18, 6, 5);
+			scene_main.add(moon);
+			var r = 22;
+			var theta = 0;
+			var dTheta = 2 * Math.PI / 1000;
+			var earthVec = new THREE.Vector3(0, 0, 0);
+			//camera.lookAt(earthVec);
+
+			////////////////////////////////////////////////////////////////////////////////
+			//													END PLANET STUFF																	//
+			////////////////////////////////////////////////////////////////////////////////
+
+			////////////////////////////////////////////////////////////////////////////////
+			//											PARTICLE SYSTEM STUFF																	//
+			////////////////////////////////////////////////////////////////////////////////
+
+			var textureLoader = new THREE.TextureLoader();
+
+			particleSystem = new THREE.GPUParticleSystem({
+				maxParticles: 250000,
+				particleNoiseTex: textureLoader.load('perlin-512.png'),
+				particleSpriteTex: textureLoader.load('star.png')
+			});
+
+			scene_main.add(particleSystem);
+
+
+			options = {
+				position: new THREE.Vector3(0, 30, 0),
+				positionRandomness: 50,
+				velocity: new THREE.Vector3(0, 0, 0),
+				velocityRandomness: 0.1,
+				//color: 0xaa88ff,
+				colorRandomness: .0,
+				turbulence: 0.1,
+				lifetime: 2,
+				size: 46,
+				sizeRandomness: 1
+			};
+
+			spawnerOptions = {
+				spawnRate: 350,
+				horizontalSpeed: 1.0,
+				verticalSpeed: 1.0,
+				timeScale: 0.2
+			};
+
+			//
+
+			gui.add(options, "velocityRandomness", 0, 2);
+			gui.add(options, "size", 1, 60);
+			gui.add(options, "sizeRandomness", 0, 25);
+			gui.add(options, "colorRandomness", 0, 1);
+			gui.add(options, "lifetime", .1, 8);
+			gui.add(options, "turbulence", 0, 0.6);
+
+			gui.add(spawnerOptions, "spawnRate", 100, 1000);
+			gui.add(spawnerOptions, "timeScale", -1, 1);
+
+			//
+
+			stats = new Stats();
+			container.appendChild(stats.dom);
+
+			////////////////////////////////////////////////////////////////////////////////
+			//												END PARTICLE SYSTEM STUFF														//
+			////////////////////////////////////////////////////////////////////////////////
+
+
+			// particleSystem = new THREE.GPUParticleSystem({
+			// 	maxParticles: 250000,
+			// 	particleNoiseTex: textureLoader.load('perlin-512.png'),
+			// 	particleSpriteTex: textureLoader.load('star.png')
+			// });
+
+			// renderer = new THREE.WebGLRenderer();
+			// renderer.setClearColor(0x000000);
+			// container.appendChild(renderer.domElement);
+					renderer = new THREE.WebGLRenderer();
+			renderer.setPixelRatio( window.devicePixelRatio );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			container.appendChild( renderer.domElement );
+			// START PARTICLE STUFF
+			controls = new THREE.OrbitControls(camera, renderer.domElement);
+			// END STAR PARTICLE STUFF
+
+			onWindowResize();
+
+			window.addEventListener('resize', onWindowResize, false);
+
+		}
+
+		function onWindowResize(event) {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			uniforms.iResolution.value.x = window.innerWidth;
+			uniforms.iResolution.value.y = window.innerHeight;
+			renderer.setSize(window.innerWidth, window.innerHeight);
+		}
+
+		function animate() {
+
+			requestAnimationFrame(animate);
+			render();
+			stats.update();
+		}
+
+		function animateParticleStars() {
+
+			requestAnimationFrame(animateParticleStars);
+
+			controls.update();
+
+			var delta = clock.getDelta() * spawnerOptions.timeScale;
+
+			tick += delta;
+
+			if (tick < 0) tick = 0;
+
+			if (delta > 0) {
+
+				options.position.x = Math.sin(tick * spawnerOptions.horizontalSpeed) * 5;
+				options.position.y = Math.sin(tick * spawnerOptions.verticalSpeed) * 5;
+				options.position.z = Math.sin(tick * spawnerOptions.horizontalSpeed + spawnerOptions.verticalSpeed) * 3;
+
+				for (var x = 0; x < spawnerOptions.spawnRate * delta; x++) {
+
+					// Yep, that's really it.	Spawning particles is super cheap, and once you spawn them, the rest of
+					// their lifecycle is handled entirely on the GPU, driven by a time uniform updated below
+
+					particleSystem.spawnParticle(options);
+
+				}
+
+			}
+
+			particleSystem.update(tick);
+
+			render();
+
+			stats.update();
+
+		}
+
+		function render() {
+			uniforms.iTime.value += clock.getDelta();
+			// if(uniforms.iTime.value > 5 && tp_in){
+			// 	removeTp();
+			// 	tp_in = false;
+			// }
+			if (uniforms.iTime.value > 5) {
+				renderer.render(scene_main, camera);
+			} else {
+				renderer.render(scene, camera);
+			}
+
+		}
+
+	// function removeTp() {
+	// 	var selectedObject = scene.getObjectByName(tp);
+	// 	scene.remove(selectedObject);
+	// }
+
+	</script>
+</body>
+
+</html>

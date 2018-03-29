@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Final Project - Realistic Planets - Eric Ota</title>
+	<meta charset="utf-8">
+	<style>
+	body {
+		margin: 0px;
+		overflow: hidden;
+	}
+	</style>
+</head>
+<body>
+	<div id="container"></div>
+
+	<script src="js/three.js"></script>
+	<script src="js/OrbitControls.js"></script>
+	<script>
+	/////////////////
+	////  SETUP /////
+	/////////////////
+	var scene = new THREE.Scene();
+	var renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	document.body.appendChild(renderer.domElement)
+	var camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 1, 1500);
+	camera.position.set(0,25,40);
+	scene.add(camera);
+	var orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+	/////////////////
+	////  LIGHTS ////
+	/////////////////
+	var ambientLight = new THREE.AmbientLight(0xFFFFFF);
+	scene.add(ambientLight);
+	var spotlight = new THREE.DirectionalLight(0xFFFFFF);
+	spotlight.position.set(50,50,50);
+	scene.add(spotlight);
+	/////////////////
+	///  OBJECTS ////
+	/////////////////
+	var earthGeometry = new THREE.SphereGeometry(10, 50, 50);
+	var earthMaterial = new THREE.MeshPhongMaterial({
+		map: new THREE.TextureLoader().load('img/earth_texture.jpg'),
+		bumpMap : new THREE.TextureLoader().load('img/earthbump1k.jpg'),
+		bumpScale : 0.7,
+		color: 0xf1f1f1
+	});
+	var earth = new THREE.Mesh(earthGeometry, earthMaterial);
+	scene.add(earth);
+	//Clouds
+	var cloudGeometry = new THREE.SphereGeometry(10.3,  50, 50);
+	var cloudMaterial = new THREE.MeshPhongMaterial({
+		map: new THREE.TextureLoader().load('img/clouds.jpg'),
+		transparent: true,
+		opacity: 0.3
+	});
+	var clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+	scene.add(clouds);
+
+	//Moon
+	var moonGeometry = new THREE.SphereGeometry(4, 60,60);
+	var moonMaterial = new THREE.MeshPhongMaterial({
+		map: new THREE.TextureLoader().load('img/moon_texture.jpg')
+	});
+	var moon = new THREE.Mesh(moonGeometry, moonMaterial);
+	moon.position.set(15,0,0);
+	scene.add(moon);
+	var r = 22;
+	var theta = 0;
+	var dTheta = 2 * Math.PI / 1000;
+	var earthVec = new THREE.Vector3(0,0,0);
+
+	/////////////////
+	// RENDER LOOP //
+	/////////////////
+	var render = function() {
+		earth.rotation.y += .001;
+		clouds.rotation.y += .0008;
+		theta += dTheta;
+		moon.position.x = r * Math.cos(theta);
+		moon.position.z = r * Math.sin(theta);
+		//camera.position.x += -.03;
+		//camera.position.y += -.03;
+		//camera.position.z += -.05;
+		camera.lookAt(earthVec);
+		renderer.render(scene, camera);
+		requestAnimationFrame(render);
+	}
+	render();
+	</script>
+</body>
+</html>
